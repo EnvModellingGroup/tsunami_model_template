@@ -1,3 +1,5 @@
+from utm import *
+
 # path relative to the root dir of this sim. Leave as mesh/blah.msh in most cases
 mesh_file = 'mesh/my_mesh.msh'
 forcing_boundary = 666

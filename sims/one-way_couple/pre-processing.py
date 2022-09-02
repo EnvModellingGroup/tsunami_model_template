@@ -1,35 +1,22 @@
+from thetis import *
 import hrds
-from firedrake import *
-from firedrake.petsc import PETSc
+import sys
+import os.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+import params
 
+mesh2d = Mesh(os.path.join(os.path.pardir,os.path.pardir,params.mesh_file)) # mesh file
 
-PETSc.Sys.Print('setting up mesh across %d processes' % COMM_WORLD.size)
-manning_drag = 0.025
-mesh_file = '../../mesh/west_scotland_regional_hires.msh'
-bathymetry_files = ["../../data/palaeo_bathytopo_50m_utm29.tif","../../data/palaeo_lidar_data_nSkye_final_utm.tif", "../../data/palaeo_lidar_data_nanCorr_final_utm.tif", "../../data/palaeo_lidar_data_gorten_final_utm.tif"]
-forcing_boundary = 666
-distances = [100.0, 100.0, 100.0]
-viscosity = 1.0
-factor = 1000.
-length_scale = 6.0e3
-mesh2d = Mesh(mesh_file)
-PETSc.Sys.Print("mesh loaded")
+viscosity = 1.0 # viscosity, obvs. 1.0 is a decent value. 10 is high, 0.001 is very low. Lower means more 
+# pretty eddies etc, but harder to solve, more likely to crash. Higher is more stable, but less realistic.
 
-def get_bathymetry(bathymetry_files, mesh2d, distances, minimum_depths=None, negative_depth=True):
-    P1_2d = FunctionSpace(mesh2d, 'CG', 1)
-    bathymetry_2d = Function(P1_2d, name="bathymetry")
-    xvector = mesh2d.coordinates.dat.data
-    bvector = bathymetry_2d.dat.data
-    assert xvector.shape[0]==bvector.shape[0]
+manning_drag = 0.025 # which value of drag?
 
-    bathy = hrds.HRDS(bathymetry_files[0], 
-             rasters=bathymetry_files[1:], 
-             distances=distances,saveBuffers=False)
-    bathy.set_bands()
-    for i, (xy) in enumerate(mesh2d.coordinates.dat.data):
-        bvector[i] = -1.0 * bathy.get_val(xy)
-    
-    return bathymetry_2d
+# which boundary is the forced boundary. We increase the visc and manning there to aid stability
+forcing_boundary = params.forcing_boundary
+
+# what distance should be used for the boundary blending (m)
+blend_dist = 50000
 
 def smoothen_bathymetry(bathymetry2d): # smoothing bathymetry
     v = TestFunction(bathymetry2d.function_space())
@@ -39,49 +26,50 @@ def smoothen_bathymetry(bathymetry2d): # smoothing bathymetry
         ml.reciprocal()
         sb.pointwiseMult(ml, mb)
 
+
 # first deal with bathymetry
-chk = DumbCheckpoint('bathymetry', mode=FILE_CREATE)
-bathymetry2d = get_bathymetry(bathymetry_files, mesh2d, distances=distances)
+with timed_stage('initialising bathymetry'):
+    bathy = hrds.HRDS("../../data/gbr_400_utm56S.tif",rasters=['../../data/gbr_100_utm56S_cropped.tif','../../data/oti_bathy_utm56S_filled_cropped.tif'],distances=[500.0,10.0])
+    bathy.set_bands()
+    P1_2d = FunctionSpace(mesh2d, 'CG', 1)
+    bathymetry2d = Function(P1_2d, name="bathymetry")
+    xvector = mesh2d.coordinates.dat.data
+    bvector = bathymetry2d.dat.data
+    assert xvector.shape[0]==bvector.shape[0]
+    for i, (xy) in enumerate(mesh2d.coordinates.dat.data):
+        bvector[i] = -1.0 * bathy.get_val(xy)
+
+
 smoothen_bathymetry(bathymetry2d)
+File('bathy.pvd').write(bathymetry2d)
+chk = DumbCheckpoint('bathymetry', mode=FILE_CREATE)
 chk.store(bathymetry2d, name='bathymetry')
+
 
 # now create distance from boundary function
 # typical length scale
-L = 1e3
+
+PETSc.Sys.Print("Done bathy")
+L = Constant(1.0e3)
 V = FunctionSpace(mesh2d, 'CG', 1)
-# Calculate distance to open boundary
-PETSc.Sys.Print('Calculate distance for viscosity')
-bcs = [DirichletBC(V, 0.0, forcing_boundary)] #make sure this matches physicalID of open boundaries
 v = TestFunction(V)
 u = Function(V)
+u.interpolate(Constant(0.0))
+bcs = DirichletBC(V, Constant(0.0), forcing_boundary) #make sure this matches physicalID of open boundaries
 solver_parameters = {
-    'ksp_rtol': 1e-3,
+    'ksp_rtol': 1e-4,
 }
 # Before we solve the Eikonal equation, let's solve a Laplace equation to
 # generate an initial guess
 F = L**2*(inner(grad(u), grad(v))) * dx - v * dx
-PETSc.Sys.Print('solve 1')
-solve(F == 0, u, bcs, solver_parameters=solver_parameters)
-
-
+solve(F == 0, u, bcs)#, solver_parameters=solver_parameters)
 solver_parameters = {
-    'snes_type': 'newtonls',
-    'snes_monitor': None,
     'ksp_rtol': 1e-4,
-    'ksp_type': 'preonly',
-    "ksp_max_it": 2000,
-    "ksp_converged_reason": None,
-    'pc_type': 'lu',
-    'pc_factor_mat_solver_packages': 'mumps',
-    "ksp_view": None,
-    "ksp_monitor_true_residual": None,
 }
-
-
 # epss values set the accuracy (in meters) of the final "distance to boundary" function. To make
 # more accurate add in extra iterations, eg, 500., 250., etc. This may result in the solver not
 # converging.
-epss = [100000., 10000., 7500., 2500., 1500., 1000.]
+epss = [100000., 50000., 10000., 7500., 5000., 2500.,1000.]
 # solve Eikonal equations
 for i, eps in enumerate(epss):
     PETSc.Sys.Print('Solving Eikonal with eps == ' + str(float(eps)))
@@ -89,16 +77,27 @@ for i, eps in enumerate(epss):
     solve(F == 0, u, bcs, solver_parameters=solver_parameters)
 
 chk = DumbCheckpoint('dist', mode=FILE_CREATE)
-dist = Function(V, name='dist')
-dist.interpolate(u)
-chk.store(dist, name='dist')
-File('dist.pvd').write(u)
+with timed_stage('initialising dist'):
+    dist = Function(V, name='dist')
+    dist.interpolate(u)
+    chk.store(dist, name='dist')
+    File('dist.pvd').write(u)
 
 # create a viscosity buffer
 #create boundary of increased viscosity
 chk = DumbCheckpoint('viscosity', mode=FILE_CREATE)
-h_viscosity = Function(V, name='viscosity')
-h_viscosity.interpolate(Max(viscosity, (viscosity*factor) * (viscosity - u / length_scale)))
-chk.store(h_viscosity, name='viscosity')
-File('viscosity.pvd').write(h_viscosity)
+with timed_stage('initialising viscosity'):
+    h_viscosity = Function(V, name='viscosity')
+    h_viscosity.interpolate(Max(viscosity, (viscosity*1000) * (1. - u / blend_dist)))
+    chk.store(h_viscosity, name='viscosity')
+    File('viscosity.pvd').write(h_viscosity)
 
+# create a manning drag function
+#create manning boundary of increased bottom friction
+chk = DumbCheckpoint('manning', mode=FILE_CREATE)
+with timed_stage('initialising manning'):
+    manning = Function(V, name='manning')
+    # no distance function here
+    manning.interpolate(manning_drag)
+    chk.store(manning, name='manning')
+    File('manning.pvd').write(manning)
