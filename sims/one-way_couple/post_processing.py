@@ -24,12 +24,12 @@ start_file = int(params.spin_up / t_export)
 
 # You shouldn't need to edit below here
 #========================================
-xvector = mesh.coordinates.dat.data
+xvector = mesh2d.coordinates.dat.data
 
 t_n = int(t_end/t_export + 1)
 thetis_times = t_export*np.arange(t_n) + t_export
-P1 = FunctionSpace(mesh, "CG", 1)
-P2 = FunctionSpace(mesh, "DG", 1)
+P1 = FunctionSpace(mesh2d, "CG", 1)
+P2 = FunctionSpace(mesh2d, "DG", 1)
 elev = Function(P2, name='elev_2d')
 elev_data_set = np.empty((t_n, elev.dat.data.shape[0]))
 for i in range(start_file,t_n):

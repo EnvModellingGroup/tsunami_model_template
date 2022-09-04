@@ -20,9 +20,9 @@ declare -a names=("Max speed (m/s)"
                  )
 
 # loop over variables
-for (( i=0; i<${#variables[@]}; i++));
+for (( i=0; i<${#varname[@]}; i++));
 do
-    var=${variables[$i]}
+    var=${varname[$i]}
     name=${names[$i]}
     echo ${var}
     file="${directory}/${var}"
@@ -34,7 +34,7 @@ do
     # create a filename
     filename="${directory}/${var}".nc
     #mask it
-    gdalwarp -cutline "${directory}/../mesh/mask.shp" -s_srs ${projection} -crop_to_cutline -of NetCDF -r bilinear  -dstnodata -9999 -overwrite temp.xyz "${filename}"
+    gdalwarp -cutline "../mesh/mask.shp" -s_srs ${projection} -crop_to_cutline -of NetCDF -r bilinear  -dstnodata -9999 -overwrite temp.xyz "${filename}"
     # rename the variable to something sensible
     ncrename -v Band1,"${var}" "${filename}"		
     # change the long name variable to contain decent info
