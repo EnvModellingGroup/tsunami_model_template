@@ -1,7 +1,7 @@
 from thetis import *
 import numpy as np
+import boundary_forcing
 import sys
-import slide_movement
 import os.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 import params
@@ -16,7 +16,7 @@ t_start = params.start_time
 output_dir = params.output_dir
 utm_zone = params.utm_zone
 utm_band=params.utm_band
-P1 = FunctionSpace(mesh, "CG", 1)
+P1 = FunctionSpace(mesh2d, "CG", 1)
 cent_lat = params.cent_lat
 cent_lon = params.cent_lon
 
@@ -53,10 +53,10 @@ def coriolis(mesh, lat, lon):
     return coriolis_2d
 
 #account for Coriolis code - mesh, centre lat, centre lon
-coriolis_2d = coriolis(mesh, cent_lat, cent_lon)
+coriolis_2d = coriolis(mesh2d, cent_lat, cent_lon)
 
 # --- create solver ---
-solverObj = solver2d.FlowSolver2d(mesh, bathymetry2d)
+solverObj = solver2d.FlowSolver2d(mesh2d, bathymetry2d)
 options = solverObj.options
 options.use_nonlinear_equations = True
 options.simulation_export_time = t_export
@@ -69,9 +69,8 @@ options.manning_drag_coefficient = manning #the manning function we created in i
 options.horizontal_viscosity = h_viscosity #the viscosity 'cushion' we created in initialisation & loaded above
 options.coriolis_frequency = coriolis_2d
 options.timestep = dt
-options.volume_source_2d = Function(P1_2d)
 options.use_automatic_wetting_and_drying_alpha = True
-options.wetting_and_drying_alpha_min = Constant(0.5)
+options.wetting_and_drying_alpha_min = Constant(0.1)
 options.wetting_and_drying_alpha_max = Constant(75.0)
 options.use_wetting_and_drying = True
 options.element_family = "dg-dg"
@@ -80,7 +79,7 @@ options.swe_timestepper_type = 'DIRK22'
 # boundary conditions
 tsunami_elev = Function(FunctionSpace(mesh2d, "CG", 1), name='tsunami_elev')
 solverObj.bnd_functions['shallow_water'] = {
-    physID: {'elev': tsunami_elev},
+    params.forcing_boundary: {'elev': tsunami_elev},
     1000: {'un': 0.0},
 }
 

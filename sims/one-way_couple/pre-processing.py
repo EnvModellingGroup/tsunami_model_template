@@ -98,6 +98,6 @@ chk = DumbCheckpoint('manning', mode=FILE_CREATE)
 with timed_stage('initialising manning'):
     manning = Function(V, name='manning')
     # no distance function here
-    manning.interpolate(manning_drag)
+    manning.interpolate(Constant(manning_drag))
     chk.store(manning, name='manning')
     File('manning.pvd').write(manning)
