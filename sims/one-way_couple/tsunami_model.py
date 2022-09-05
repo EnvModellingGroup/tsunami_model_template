@@ -12,6 +12,7 @@ mesh2d = Mesh(os.path.join(os.path.pardir,os.path.pardir,params.mesh_file))
 dt = 2 # reduce if solver does not converge
 t_export = params.output_time
 t_end = params.end_time
+t_start = params.start_time
 output_dir = params.output_dir
 utm_zone = params.utm_zone
 utm_band=params.utm_band

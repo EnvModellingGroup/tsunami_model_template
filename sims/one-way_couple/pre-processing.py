@@ -29,7 +29,7 @@ def smoothen_bathymetry(bathymetry2d): # smoothing bathymetry
 
 # first deal with bathymetry
 with timed_stage('initialising bathymetry'):
-    bathy = hrds.HRDS("../../data/gbr_400_utm56S.tif",rasters=['../../data/gbr_100_utm56S_cropped.tif','../../data/oti_bathy_utm56S_filled_cropped.tif'],distances=[500.0,10.0])
+    bathy = hrds.HRDS("../../data/palaeo_bathy_topo_utm30n.tif",rasters=['../../data/palaeo_lidar_1m_utm30n_masked.tif'],distances=[20.0])
     bathy.set_bands()
     P1_2d = FunctionSpace(mesh2d, 'CG', 1)
     bathymetry2d = Function(P1_2d, name="bathymetry")

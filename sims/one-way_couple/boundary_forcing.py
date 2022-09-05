@@ -1,14 +1,9 @@
-import utm
 import scipy.interpolate
 import numpy as np
 
-# edit me!
-utm_zone=29
-utm_band='U'
 fluidity_times = np.loadtxt('../../data/times.txt')
 boundary_coords = np.loadtxt('../../data/coordinates.txt')
 boundary_data = np.loadtxt('../../data/elev.txt')
-
 
 def set_tsunami_field(elev, t):
     

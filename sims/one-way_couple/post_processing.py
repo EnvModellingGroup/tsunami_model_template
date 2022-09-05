@@ -20,7 +20,7 @@ t_end = params.end_time #40 days (i.e. 30 days of analysis)
 # how often are exports produced in the main run?
 t_export = params.output_time
 # which is the start file?
-start_file = int(params.spin_up / t_export)
+start_file = 0
 
 # You shouldn't need to edit below here
 #========================================

@@ -24,7 +24,7 @@ mesh2d = Mesh(os.path.join(os.path.pardir,os.path.pardir,params.mesh_file))
 
 # How long does your simulations run for (s)
 t_end = params.end_time # which is the start file?
-start_file = int(params.spin_up / params.output_time) 
+start_file = 0
 # how often are exports produced in the main run?
 t_export = params.output_time
 
