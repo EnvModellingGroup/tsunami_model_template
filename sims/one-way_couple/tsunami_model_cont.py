@@ -6,7 +6,7 @@ import os.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 import params
 
-checkpoint_number = 1000
+checkpoint = 1000
 
 mesh2d = Mesh(os.path.join(os.path.pardir,os.path.pardir,params.mesh_file))
 
