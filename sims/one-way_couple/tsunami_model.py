@@ -21,19 +21,19 @@ cent_lat = params.cent_lat
 cent_lon = params.cent_lon
 
 # read bathymetry code
-chk = DumbCheckpoint('bathymetry', mode=FILE_READ)
-bathymetry2d = Function(P1)
-chk.load(bathymetry2d,  name='bathymetry')
+chk = CheckpointFile('bathymetry', 'r')
+mesh = chk.load_mesh()
+bathymetry2d = chk.load_function(mesh,'bathymetry')
 chk.close()
 
 #read viscosity / manning boundaries code
-chk = DumbCheckpoint('viscosity', mode=FILE_READ)
-h_viscosity = Function(bathymetry2d.function_space(), name='viscosity')
-chk.load(h_viscosity)
+chk = CheckpointFile('viscosity', 'r')
+mesh = chk.load_mesh()
+h_viscosity = chk.load_function(mesh,'viscosity')
 chk.close()
-chk = DumbCheckpoint('manning', mode=FILE_READ)
-manning = Function(bathymetry2d.function_space(), name='manning')
-chk.load(manning)
+chk = CheckpointFile('manning', 'r')
+mesh = chk.load_mesh()
+manning = chk.load_function(mesh, 'manning')
 chk.close()
 
 # function to set up the Coriolis force
