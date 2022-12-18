@@ -12,30 +12,31 @@ mesh2d = Mesh(os.path.join(os.path.pardir,os.path.pardir,params.mesh_file))
 dt = 2 # reduce if solver does not converge
 t_export = params.output_time
 t_end = params.end_time
+t_start = params.start_time
 output_dir = params.output_dir
 utm_zone = params.utm_zone
 utm_band=params.utm_band
-P1 = FunctionSpace(mesh, "CG", 1)
+P1 = FunctionSpace(mesh2d, "CG", 1)
 cent_lat = params.cent_lat
 cent_lon = params.cent_lon
 
 # read bathymetry code
-chk = DumbCheckpoint('bathymetry', mode=FILE_READ)
-bathymetry2d = Function(P1)
-chk.load(bathymetry2d,  name='bathymetry')
+chk = CheckpointFile('bathymetry', 'r')
+mesh = chk.load_mesh()
+bathymetry2d = chk.load_function(mesh,'bathymetry')
 chk.close()
 
 xy = SpatialCoordinate(mesh2d)
 P1_2d = FunctionSpace(mesh2d, 'CG', 1)
 
 #read viscosity / manning boundaries code
-chk = DumbCheckpoint('viscosity', mode=FILE_READ)
-h_viscosity = Function(bathymetry2d.function_space(), name='viscosity')
-chk.load(h_viscosity)
+chk = CheckpointFile('viscosity', 'r')
+mesh = chk.load_mesh()
+h_viscosity = chk.load_function(mesh,'viscosity')
 chk.close()
-chk = DumbCheckpoint('manning', mode=FILE_READ)
-manning = Function(bathymetry2d.function_space(), name='manning')
-chk.load(manning)
+chk = CheckpointFile('manning', 'r')
+mesh = chk.load_mesh()
+manning = chk.load_function(mesh, 'manning')
 chk.close()
 
 # function to set up the Coriolis force
@@ -62,6 +63,15 @@ slide_height_file = File(outputdir + '/slide_height.pvd')
 coriolis_2d = coriolis(mesh, cent_lat, cent_lon)
 
 def create_hs(t):
+    hs = Function(P1_2d)
+    mesh2d = hs.ufl_domain()
+    xy_vector = mesh2d.coordinates.dat.data
+    hs_vector = hs.dat.data
+    assert xy_vector.shape[0] == hs_vector.shape[0]
+    for i, xy in enumerate(xy_vector):
+        hs_vector[i] = set_slide_height(xy,t,form=params.FORM,profile=params.PROFILE)
+    return hs
+
 
 # --- create solver ---
 solverObj = solver2d.FlowSolver2d(mesh, bathymetry2d)
