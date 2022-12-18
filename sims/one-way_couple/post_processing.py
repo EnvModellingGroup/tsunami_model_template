@@ -76,17 +76,17 @@ for i in range(start_file,int(t_end/t_export)+1):
     u_data_set[count, :] = solverObj.fields.uv_2d.dat.data[:,0]
     v_data_set[count, :] = solverObj.fields.uv_2d.dat.data[:,1]
     elev_data_set[count, :] = solverObj.fields.elev_2d.dat.data[:]
-#    speed = np.sqrt(u_data_set[count, :]*u_data_set[count, :] + v_data_set[count, :]*v_data_set[count, :])
-#    elev_bathy = elev_data_set[count, :] + bathy
-#    man = manningdg.dat.data[:]
-#    tau_b = np.array(1024*9.81*man*man*speed*speed / (elev_bathy)**(1./3.))
-#    tau_b[ elev_bathy < 0.001] = 0.0 # we have < 1mm of water
-#    tau_b[ tau_b < 0.0 ] = 0.0 # we had no water (shouldn't happen due to above, but just in case)
-#    bss.dat.data[:] = tau_b
-#    with CheckpointFile(output_dir + "/bss_{:05}.h5".format(i), 'w') as bss_chk:
-#        bss_chk.save_mesh(mesh2d)
-#        bss_chk.save_function(bss)
-#    bss_file.write(bss)
+    speed = np.sqrt(u_data_set[count, :]*u_data_set[count, :] + v_data_set[count, :]*v_data_set[count, :])
+    elev_bathy = elev_data_set[count, :] + bathy
+    man = manningdg.dat.data[:]
+    tau_b = np.array(1024*9.81*man*man*speed*speed / (elev_bathy)**(1./3.))
+    tau_b[ elev_bathy < 0.001] = 0.0 # we have < 1mm of water
+    tau_b[ tau_b < 0.0 ] = 0.0 # we had no water (shouldn't happen due to above, but just in case)
+    bss.dat.data[:] = tau_b
+    with CheckpointFile(output_dir + "/bss_{:05}.h5".format(i), 'w') as bss_chk:
+        bss_chk.save_mesh(mesh2d)
+        bss_chk.save_function(bss)
+    bss_file.write(bss)
     count += 1
 
 ave_speed = [] # average over speeds
