@@ -1,7 +1,7 @@
 import numpy as np
 import qgis.core
 import sys
-import qmesh3
+import qmesh3 as qmesh
 
 # EDIT ME #
 shp_file = "../mesh/simulation_boundaries.shp"
