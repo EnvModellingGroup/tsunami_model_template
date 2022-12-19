@@ -24,14 +24,14 @@ mesh2d = Mesh(os.path.join(os.path.pardir,os.path.pardir,params.mesh_file))
 
 # How long does your simulations run for (s)
 t_end = params.end_time # which is the start file?
-start_file = 0
+t_start = params.start_time
 # how often are exports produced in the main run?
 t_export = params.output_time
 
 # where are your thetis output files (note, do not include the hdf5 directory)
 thetis_dir = params.output_dir
 
-t_n = int((t_end/t_export) - start_file + 1)
+t_n = int((t_end/t_export) - t_start + 1)
 thetis_times = t_export*np.arange(t_n) + t_export
 
 P1 = FunctionSpace(mesh2d, "CG", 1)
@@ -71,8 +71,8 @@ bss = Function(P1DG, name="BSS")
 bathy = bathydg.dat.data[:]
 bss_file = File( output_dir + '/bss.pvd')
 
-for i in range(start_file,int(t_end/t_export)+1):
-    solverObj.load_state(i, legacy_mode=legacy_run)
+for i in range(t_start,t_end+1,t_export):
+    solverObj.load_state(count, legacy_mode=legacy_run)
     u_data_set[count, :] = solverObj.fields.uv_2d.dat.data[:,0]
     v_data_set[count, :] = solverObj.fields.uv_2d.dat.data[:,1]
     elev_data_set[count, :] = solverObj.fields.elev_2d.dat.data[:]
