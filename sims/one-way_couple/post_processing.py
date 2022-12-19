@@ -31,7 +31,7 @@ t_export = params.output_time
 # where are your thetis output files (note, do not include the hdf5 directory)
 thetis_dir = params.output_dir
 
-t_n = int((t_end/t_export) - t_start + 1)
+t_n = int((t_end - t_start + 1) / t_export)
 thetis_times = t_export*np.arange(t_n) + t_export
 
 P1 = FunctionSpace(mesh2d, "CG", 1)
