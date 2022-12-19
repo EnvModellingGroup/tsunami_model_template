@@ -71,7 +71,7 @@ bss = Function(P1DG, name="BSS")
 bathy = bathydg.dat.data[:]
 bss_file = File( output_dir + '/bss.pvd')
 
-for i in range(t_start,t_end+1,t_export):
+for i in range(t_start,t_end,t_export):
     solverObj.load_state(count, legacy_mode=legacy_run)
     u_data_set[count, :] = solverObj.fields.uv_2d.dat.data[:,0]
     v_data_set[count, :] = solverObj.fields.uv_2d.dat.data[:,1]
@@ -97,9 +97,9 @@ ave_vel = [] # vector of ave u and ave v
 max_vel = [] # vector of when max speed occurs
 max_fs = [] # maximum wave height
 
-man = np.array(manningdg.dat.data[i])
-bathy = np.array(bathydg.dat.data[i])
 for i in range(uv.dat.data.shape[0]): # loop over nodes in the Function mesh
+    man = np.array(manningdg.dat.data[i])
+    bathy = np.array(bathydg.dat.data[i])
     u_vel = np.array(u_data_set[:,i]) # timeseries of u, v and elevation
     v_vel = np.array(v_data_set[:,i])
     elev = np.array(elev_data_set[:,i])
