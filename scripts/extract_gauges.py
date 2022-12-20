@@ -62,7 +62,8 @@ t_export = params.output_time
 # where are your thetis output files (note, do not include the hdf5 directory)
 thetis_dir = params.output_dir
 
-t_n = int((t_end/t_export) - start_file + 1)
+t_n = int((t_end - t_start + 1) / t_export)
+thetis_times = t_export*np.arange(t_n) + t_export
 
 # --- create dummy solver ---
 solverObj = solver2d.FlowSolver2d(mesh2d, Constant(10.0))
@@ -109,8 +110,8 @@ count = 0
 if (not legacy_run):
     # only if we're using the new checkpoint
     file_location = os.path.join(run_dir,'analysis/') #location of the BSS output files
-    for i in range(start_file,int(t_end/t_export)+1):
-        PETSc.Sys.Print('Reading BSS h5 files. Time ',i,i*t_export)
+    for i in range(t_start,t_end,t_export):
+        PETSc.Sys.Print('Reading BSS h5 files. Time ',count,i)
         with CheckpointFile(file_location + 'bss_{:05}.h5'.format(i), 'r') as chk:
             mesh = chk.load_mesh()
             bss = chk.load_function(mesh, "BSS")
