@@ -3,8 +3,6 @@ from thetis import *
 import os.path
 import sys
 import math
-import sys
-import os.path
 import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 import params
@@ -13,7 +11,7 @@ import params
 # where would you like to store the output of this analysis?
 output_dir = 'analysis'
 
-# was this run created with the DumbCheckpoint code. If so, make this True
+# was this run created with the DumbCheckpoint code? If so, make this True
 legacy_run = False
 
 # You *MAY* need to edit below this line
@@ -24,14 +22,14 @@ mesh2d = Mesh(os.path.join(os.path.pardir,os.path.pardir,params.mesh_file))
 
 # How long does your simulations run for (s)
 t_end = params.end_time # which is the start file?
-start_file = 0
+t_start = params.start_time
 # how often are exports produced in the main run?
 t_export = params.output_time
 
 # where are your thetis output files (note, do not include the hdf5 directory)
 thetis_dir = params.output_dir
 
-t_n = int((t_end/t_export) - start_file + 1)
+t_n = int((t_end - t_start + 1) / t_export)
 thetis_times = t_export*np.arange(t_n) + t_export
 
 P1 = FunctionSpace(mesh2d, "CG", 1)
@@ -71,8 +69,8 @@ bss = Function(P1DG, name="BSS")
 bathy = bathydg.dat.data[:]
 bss_file = File( output_dir + '/bss.pvd')
 
-for i in range(start_file,int(t_end/t_export)+1):
-    solverObj.load_state(i, legacy_mode=legacy_run)
+for i in range(t_start,t_end,t_export):
+    solverObj.load_state(count, legacy_mode=legacy_run)
     u_data_set[count, :] = solverObj.fields.uv_2d.dat.data[:,0]
     v_data_set[count, :] = solverObj.fields.uv_2d.dat.data[:,1]
     elev_data_set[count, :] = solverObj.fields.elev_2d.dat.data[:]
@@ -97,9 +95,9 @@ ave_vel = [] # vector of ave u and ave v
 max_vel = [] # vector of when max speed occurs
 max_fs = [] # maximum wave height
 
-man = np.array(manningdg.dat.data[i])
-bathy = np.array(bathydg.dat.data[i])
 for i in range(uv.dat.data.shape[0]): # loop over nodes in the Function mesh
+    man = np.array(manningdg.dat.data[i])
+    bathy = np.array(bathydg.dat.data[i])
     u_vel = np.array(u_data_set[:,i]) # timeseries of u, v and elevation
     v_vel = np.array(v_data_set[:,i])
     elev = np.array(elev_data_set[:,i])
@@ -120,7 +118,7 @@ for i in range(uv.dat.data.shape[0]): # loop over nodes in the Function mesh
 
     max_fs.append(np.max(elev))
 
-
+# We then save all the scalar temporal stats in a single hdf5 file
 with CheckpointFile(output_dir + '/temporal_stats_scal.h5', "w") as chk:
     chk.save_mesh(mesh2d)
     avespeed = Function(P1DG, name="AveSpeed")

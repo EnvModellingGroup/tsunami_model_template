@@ -3,8 +3,6 @@ from thetis import *
 import os.path
 import sys
 import math
-import sys
-import os.path
 import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 import params
@@ -13,7 +11,7 @@ import params
 # where would you like to store the output of this analysis?
 output_dir = 'analysis'
 
-# was this run created with the DumbCheckpoint code. If so, make this True
+# was this run created with the DumbCheckpoint code? If so, make this True
 legacy_run = False
 
 # You *MAY* need to edit below this line
@@ -120,7 +118,7 @@ for i in range(uv.dat.data.shape[0]): # loop over nodes in the Function mesh
 
     max_fs.append(np.max(elev))
 
-
+# We then save all the scalar temporal stats in a single hdf5 file
 with CheckpointFile(output_dir + '/temporal_stats_scal.h5', "w") as chk:
     chk.save_mesh(mesh2d)
     avespeed = Function(P1DG, name="AveSpeed")
