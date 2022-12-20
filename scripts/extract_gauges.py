@@ -35,7 +35,7 @@ try:
         # Expect file to be:
         # Name, X, Y, M2 amp, M2 phase, etc
         # Header should be as above, with capitalisation etc, but order is unimportant
-        reader = csv.DictReader(csvfile)
+        reader = csv.DictReader(csvfile,dialect=dialect)
         for row in reader:
             temp = dict(row) # copy
             temp.pop('Name') # remove name
