@@ -55,7 +55,7 @@ for loc in tide_gauge_data:
 
 # How long does your simulations run for (s)
 t_end = params.end_time # which is the start file?
-start_file = 0
+t_start = params.start_time
 # how often are exports produced in the main run?
 t_export = params.output_time
 
@@ -85,9 +85,9 @@ speed_data = np.empty((t_n,  len(gauge_locs)))
 bss_data = np.empty((t_n,  len(gauge_locs)))
 
 count = 0
-for i in range(start_file,int(t_end/t_export)+1):
-    PETSc.Sys.Print('Reading h5 files. Time ',i,i*params.output_time)
-    solverObj.load_state(i, legacy_mode=legacy_run)
+for i in range(t_start,t_end,t_export):
+    PETSc.Sys.Print('Reading h5 files. Time ',count,i)
+    solverObj.load_state(count, legacy_mode=legacy_run)
     elev_data[count, :] = solverObj.fields.elev_2d.at(gauge_locs,dont_raise=True)
     u_data_set = solverObj.fields.uv_2d.dat.data[:,0]
     v_data_set = solverObj.fields.uv_2d.dat.data[:,1]
