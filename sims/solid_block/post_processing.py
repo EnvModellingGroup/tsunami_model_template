@@ -29,7 +29,7 @@ t_export = params.output_time
 # where are your thetis output files (note, do not include the hdf5 directory)
 thetis_dir = params.output_dir
 
-t_n = int((t_end - t_start + 1) / t_export)
+t_n = int((t_end - t_start) / t_export) + 1
 thetis_times = t_export*np.arange(t_n) + t_export
 
 P1 = FunctionSpace(mesh2d, "CG", 1)
@@ -81,7 +81,7 @@ for i in range(t_start,t_end,t_export):
     tau_b[ elev_bathy < 0.001] = 0.0 # we have < 1mm of water
     tau_b[ tau_b < 0.0 ] = 0.0 # we had no water (shouldn't happen due to above, but just in case)
     bss.dat.data[:] = tau_b
-    with CheckpointFile(output_dir + "/bss_{:05}.h5".format(i), 'w') as bss_chk:
+    with CheckpointFile(output_dir + "/bss_{:05}.h5".format(count), 'w') as bss_chk:
         bss_chk.save_mesh(mesh2d)
         bss_chk.save_function(bss)
     bss_file.write(bss)
