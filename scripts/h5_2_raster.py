@@ -58,7 +58,7 @@ def main():
             )
     parser.add_argument(
             '--func',
-            help="Harcoded function name. Only used when using temporal_stat* files"
+            help="Harcoded function name. Only used when using temporal_stat* or tidal_stat* files"
             )
     parser.add_argument(
             '--min_max',
@@ -159,11 +159,13 @@ def main():
     else:
         data_set = np.empty(len(raster_coords))
 
+    # loop over the requested h5 files, pulling out the velocity at
+    # our raster points, then saving to xyz files for each output
     head, tail = os.path.split(input_file)
-    if (tail.startswith("temporal_stats")) :
+    if (tail.startswith("temporal_stats") or tail.startswith("tidal_stats")) :
         # special case where the functions are in the same file
         if (func == None):
-            PETSc.Sys.Print("Need to specify a function name via --func if using the temporal stats file")
+            PETSc.Sys.Print("Need to specify a function name via --func if using the temporal or tidal stats file")
             sys.exit(-1)
         func_name = func
         timestep = None

@@ -14,13 +14,10 @@ run_dir = "../sims/palaeoslip/"
 tide_gauges = "../data/core_sites_sep2021.csv"
 legacy_run = False # will not work with bss with this true...
 
-
 # You *MAY* need to edit below this line
 # Make sure below matches your main run file as much as possible
 # *if* anything goes wrong with the analysis
 #============================================================#
-
-mesh2d = Mesh(os.path.join(run_dir,os.path.pardir,os.path.pardir,params.mesh_file))
 
 # now load in the tide gauge locations
 # how long is the input? 
@@ -54,7 +51,7 @@ for loc in tide_gauge_data:
 
 
 # How long does your simulations run for (s)
-t_end = params.end_time # which is the start file?
+t_end = params.end_time
 t_start = params.start_time
 # how often are exports produced in the main run?
 t_export = params.output_time
@@ -63,7 +60,10 @@ t_export = params.output_time
 thetis_dir = params.output_dir
 
 t_n = int((t_end - t_start + 1) / t_export)
-thetis_times = t_export*np.arange(t_n) + t_export
+
+# this is a big assumption in terms of which h5 file exists. May need updating in future.
+chk = CheckpointFile(os.path.join(run_dir,"output/hdf5/Elevation2d_00000.h5"),'r')
+mesh2d = chk.load_mesh()
 
 # --- create dummy solver ---
 solverObj = solver2d.FlowSolver2d(mesh2d, Constant(10.0))
@@ -80,25 +80,25 @@ options.output_directory = os.path.join(run_dir,params.output_dir)
 P1DG = FunctionSpace(mesh2d, "DG", 1)
 speed = Function(P1DG, name='speed')
 
-thetis_times = params.output_time*np.arange(t_n)
+thetis_times = t_start + t_export*np.arange(t_n)
 elev_data = np.empty((t_n,  len(gauge_locs)))
 speed_data = np.empty((t_n,  len(gauge_locs)))
 bss_data = np.empty((t_n,  len(gauge_locs)))
 
-count = 0
-for i in range(t_start,t_end,t_export):
+count = int(t_start / t_export)
+index = 0
+for i in thetis_times:
     PETSc.Sys.Print('Reading h5 files. Time ',count,i)
     solverObj.load_state(count, legacy_mode=legacy_run)
-    elev_data[count, :] = solverObj.fields.elev_2d.at(gauge_locs,dont_raise=True)
+    elev_data[index, :] = solverObj.fields.elev_2d.at(gauge_locs,dont_raise=True)
     u_data_set = solverObj.fields.uv_2d.dat.data[:,0]
     v_data_set = solverObj.fields.uv_2d.dat.data[:,1]
     speed_dat = np.sqrt(u_data_set[:]*u_data_set[:] + v_data_set[:]*v_data_set[:])
     speed.dat.data[:] = speed_dat
-    speed_data[count, :] = speed.at(gauge_locs,dont_raise=True)
+    speed_data[index, :] = speed.at(gauge_locs,dont_raise=True)
     count = count + 1
+    index = index + 1
 
-PETSc.Sys.Print(elev_data)    
-PETSc.Sys.Print(np.reshape(np.array(thetis_times),(-1,1)))        
 elev_data = np.append(np.reshape(np.array(thetis_times),(-1,1)),elev_data,axis=1)
 speed_data = np.append(np.reshape(np.array(thetis_times),(-1,1)),speed_data,axis=1)
 
@@ -110,13 +110,15 @@ count = 0
 if (not legacy_run):
     # only if we're using the new checkpoint
     file_location = os.path.join(run_dir,'analysis/') #location of the BSS output files
-    for i in range(t_start,t_end,t_export):
-        PETSc.Sys.Print('Reading BSS h5 files. Time ',count,i)
+    count = int(t_start / t_export)
+    index = 0
+    for i in thetis_times:
+        PETSc.Sys.Print('Reading BSS files. Time ',count,i)
         with CheckpointFile(file_location + 'bss_{:05}.h5'.format(i), 'r') as chk:
-            mesh = chk.load_mesh()
-            bss = chk.load_function(mesh, "BSS")
+            bss = chk.load_function(mesh2d, "BSS")
         bss_data[count, :] = bss.at(gauge_locs,dont_raise=True)
         count = count + 1
+        index = index + 1
 
     bss_data = np.append(np.reshape(np.array(thetis_times),(-1,1)),bss_data,axis=1)
     np.savetxt(os.path.join(run_dir,"model_gauges_bss.csv"), bss_data, delimiter=",")
