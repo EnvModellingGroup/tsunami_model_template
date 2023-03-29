@@ -47,6 +47,29 @@ chk.save_mesh(mesh2d)
 chk.save_function(bathymetry2d, name='bathymetry')
 
 
+with timed_stage('initialising mannings'):
+    mannings_data = hrds.HRDS("mannings.tif",rasters=['mannings.tif'],distances=[1000.0])
+    mannings_data.set_bands()
+    P1_2d = FunctionSpace(mesh2d, 'CG', 1)
+    manning = Function(P1_2d, name="manning")
+    xvector = mesh2d.coordinates.dat.data
+    bvector = manning.dat.data
+    assert xvector.shape[0]==bvector.shape[0]
+    for i, (xy) in enumerate(mesh2d.coordinates.dat.data):
+        bvector[i] = mannings_data.get_val(xy)
+        if bvector[i] < 0.0001:
+            bvector[i] = manning_drag
+
+smoothen_bathymetry(manning)
+# create a manning drag function
+#create manning boundary of increased bottom friction
+chk = CheckpointFile('manning.h5', 'w')
+with timed_stage('initialising manning'):
+    # no distance function here
+    chk.save_mesh(mesh2d)
+    chk.save_function(manning, name='manning')
+    File('manning.pvd').write(manning)
+
 # now create distance from boundary function
 # typical length scale
 
@@ -91,13 +114,4 @@ with timed_stage('initialising viscosity'):
     chk.save_function(h_viscosity, name='viscosity')
     File('viscosity.pvd').write(h_viscosity)
 
-# create a manning drag function
-#create manning boundary of increased bottom friction
-chk = CheckpointFile('manning.h5', 'w')
-with timed_stage('initialising manning'):
-    manning = Function(V, name='manning')
-    # no distance function here
-    manning.interpolate(Constant(manning_drag))
-    chk.save_mesh(mesh2d)
-    chk.save_function(manning, name='manning')
-    File('manning.pvd').write(manning)
+
