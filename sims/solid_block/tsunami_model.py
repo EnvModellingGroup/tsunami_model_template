@@ -6,8 +6,6 @@ import os.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 import params
 
-mesh2d = Mesh(os.path.join(os.path.pardir,os.path.pardir,params.mesh_file))
-
 #timestepping options
 dt = 2 # reduce if solver does not converge
 t_export = params.output_time
@@ -16,28 +14,24 @@ t_start = params.start_time
 output_dir = params.output_dir
 utm_zone = params.utm_zone
 utm_band=params.utm_band
-P1 = FunctionSpace(mesh2d, "CG", 1)
 cent_lat = params.cent_lat
 cent_lon = params.cent_lon
 
 # read bathymetry code
-chk = CheckpointFile('bathymetry', 'r')
-mesh = chk.load_mesh()
-bathymetry2d = chk.load_function(mesh,'bathymetry')
+chk = CheckpointFile('bathymetry.h5', 'r')
+mesh2d = chk.load_mesh()
+bathymetry2d = chk.load_function(mesh2d,'bathymetry')
 chk.close()
-
-xy = SpatialCoordinate(mesh2d)
-P1_2d = FunctionSpace(mesh2d, 'CG', 1)
 
 #read viscosity / manning boundaries code
-chk = CheckpointFile('viscosity', 'r')
-mesh = chk.load_mesh()
-h_viscosity = chk.load_function(mesh,'viscosity')
+chk = CheckpointFile('viscosity.h5', 'r')
+h_viscosity = chk.load_function(mesh2d,'viscosity')
 chk.close()
-chk = CheckpointFile('manning', 'r')
-mesh = chk.load_mesh()
-manning = chk.load_function(mesh, 'manning')
+chk = CheckpointFile('manning.h5', 'r')
+manning = chk.load_function(mesh2d, 'manning')
 chk.close()
+
+P1_2d = FunctionSpace(mesh2d, 'CG', 1)
 
 # function to set up the Coriolis force
 # Depends on a "central" lat/lon point in
@@ -60,7 +54,7 @@ slide_height = Function(P1_2d, name="slide_height")         # Slide movement
 slide_height_file = File(outputdir + '/slide_height.pvd')
 
 #account for Coriolis code - mesh, centre lat, centre lon
-coriolis_2d = coriolis(mesh, cent_lat, cent_lon)
+coriolis_2d = coriolis(mesh2d, cent_lat, cent_lon)
 
 def create_hs(t):
     hs = Function(P1_2d)
@@ -74,7 +68,7 @@ def create_hs(t):
 
 
 # --- create solver ---
-solverObj = solver2d.FlowSolver2d(mesh, bathymetry2d)
+solverObj = solver2d.FlowSolver2d(mesh2d, bathymetry2d)
 options = solverObj.options
 options.use_nonlinear_equations = True
 options.simulation_export_time = t_export
@@ -89,7 +83,7 @@ options.coriolis_frequency = coriolis_2d
 options.timestep = dt
 options.volume_source_2d = Function(P1_2d)
 options.use_automatic_wetting_and_drying_alpha = True
-options.wetting_and_drying_alpha_min = Constant(0.5)
+options.wetting_and_drying_alpha_min = Constant(0.1)
 options.wetting_and_drying_alpha_max = Constant(75.0)
 options.use_wetting_and_drying = True
 options.element_family = "dg-dg"

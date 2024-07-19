@@ -8,8 +8,6 @@ import params
 
 checkpoint = 1000
 
-mesh2d = Mesh(os.path.join(os.path.pardir,os.path.pardir,params.mesh_file))
-
 #timestepping options
 dt = 2 # reduce if solver does not converge
 t_export = params.output_time
@@ -18,25 +16,27 @@ t_start = params.start_time
 output_dir = params.output_dir
 utm_zone = params.utm_zone
 utm_band=params.utm_band
-P1 = FunctionSpace(mesh2d, "CG", 1)
 cent_lat = params.cent_lat
 cent_lon = params.cent_lon
 
 # read bathymetry code
 chk = CheckpointFile('bathymetry', 'r')
-mesh = chk.load_mesh()
-bathymetry2d = chk.load_function(mesh,'bathymetry')
+mesh2d = chk.load_mesh()
+bathymetry2d = chk.load_function(mesh2d,'bathymetry')
 chk.close()
 
 #read viscosity / manning boundaries code
 chk = CheckpointFile('viscosity', 'r')
-mesh = chk.load_mesh()
-h_viscosity = chk.load_function(mesh,'viscosity')
+mesh2d = chk.load_mesh()
+h_viscosity = chk.load_function(mesh2d,'viscosity')
 chk.close()
 chk = CheckpointFile('manning', 'r')
-mesh = chk.load_mesh()
-manning = chk.load_function(mesh, 'manning')
+mesh2d = chk.load_mesh()
+manning = chk.load_function(mesh2d, 'manning')
 chk.close()
+
+P1 = FunctionSpace(mesh2d, "CG", 1)
+
 
 # function to set up the Coriolis force
 # Depends on a "central" lat/lon point in

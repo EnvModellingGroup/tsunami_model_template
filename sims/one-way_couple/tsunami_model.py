@@ -6,7 +6,6 @@ import os.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 import params
 
-mesh2d = Mesh(os.path.join(os.path.pardir,os.path.pardir,params.mesh_file))
 
 #timestepping options
 dt = 2 # reduce if solver does not converge
@@ -16,24 +15,21 @@ t_start = params.start_time
 output_dir = params.output_dir
 utm_zone = params.utm_zone
 utm_band=params.utm_band
-P1 = FunctionSpace(mesh2d, "CG", 1)
 cent_lat = params.cent_lat
 cent_lon = params.cent_lon
 
 # read bathymetry code
-chk = CheckpointFile('bathymetry', 'r')
-mesh = chk.load_mesh()
-bathymetry2d = chk.load_function(mesh,'bathymetry')
+chk = CheckpointFile('bathymetry.h5', 'r')
+mesh2d = chk.load_mesh()
+bathymetry2d = chk.load_function(mesh2d,'bathymetry')
 chk.close()
 
 #read viscosity / manning boundaries code
-chk = CheckpointFile('viscosity', 'r')
-mesh = chk.load_mesh()
-h_viscosity = chk.load_function(mesh,'viscosity')
+chk = CheckpointFile('viscosity.h5', 'r')
+h_viscosity = chk.load_function(mesh2d,'viscosity')
 chk.close()
-chk = CheckpointFile('manning', 'r')
-mesh = chk.load_mesh()
-manning = chk.load_function(mesh, 'manning')
+chk = CheckpointFile('manning.h5', 'r')
+manning = chk.load_function(mesh2d, 'manning')
 chk.close()
 
 # function to set up the Coriolis force
