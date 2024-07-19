@@ -1,122 +1,163 @@
 import numpy as np
-from matplotlib import pyplot as plt
+from helper_functions import *
 import datetime
-import uptide
 from thetis import *
 import sys
 import csv
+import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir, "sims")))
 import params
 from firedrake.petsc import PETSc
+import gc
+import argparse
 
-# EDIT ME #
-run_dir = "../sims/palaeoslip/"
-tide_gauges = "../data/core_sites_sep2021.csv"
-legacy_run = False # will not work with bss with this true...
+petsc_options = PETSc.Options()
+petsc_options["options_left"] = False
 
+def main():
 
-# You *MAY* need to edit below this line
-# Make sure below matches your main run file as much as possible
-# *if* anything goes wrong with the analysis
-#============================================================#
+    parser = argparse.ArgumentParser(
+         prog="extract gauges",
+         description="""Extract elevation, velocity and BSS from a thetis run at a number of gauges"""
+    )
+    parser.add_argument(
+        '-v', 
+        '--verbose', 
+        action='store_true', 
+        help="Verbose output: mainly progress reports.",
+        default=False
+    )
+    parser.add_argument(
+        '-b', 
+        '--bss', 
+        action='store_true', 
+        help="Also extract BSS? Assumues you have a bunch of bss.h5 files for each output step",
+        default=False
+    )
+    parser.add_argument(
+        '--velocity', 
+        action='store_true', 
+        help="Also extract velocity?",
+        default=False
+    )
+    parser.add_argument(
+        '-t',
+        '--tide',
+        help="The tide gauge file, including path. Default is '../data/tide_gauges.csv'",
+        default="../data/tide_gauges.csv"
+    )
+    parser.add_argument(
+        '-s',
+        '--stub',
+        help='short string to append onto output filenames, before the extension, e.g. using "7" would make the output "thetis_vs_obs_7.pdf"'
+    )
+    parser.add_argument(
+        'model_dir',
+        help='The model run directory, e.g. ../sims/base_case/'
+    )
 
-mesh2d = Mesh(os.path.join(run_dir,os.path.pardir,os.path.pardir,params.mesh_file))
+    args = parser.parse_args()
+    verbose = args.verbose    
+    tide_gauges = args.tide
+    stub = args.stub
+    thetis_dir = args.model_dir
+    calc_bss = args.bss
+    calc_velocity = args.velocity
 
-# now load in the tide gauge locations
-# how long is the input? 
-tide_gauge_data = {}
-try:
-    with open(tide_gauges, 'r') as csvfile:
-        # need to read in a couple of lines, rather than a set of bytes
-        # for sniffer to work properly
-        temp_lines = csvfile.readline() + '\n' + csvfile.readline()
-        dialect = csv.Sniffer().sniff(temp_lines, delimiters=",\t")
-        csvfile.seek(0)
-        # Expect file to be:
-        # Name, X, Y, M2 amp, M2 phase, etc
-        # Header should be as above, with capitalisation etc, but order is unimportant
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            temp = dict(row) # copy
-            temp.pop('Name') # remove name
-            tide_gauge_data[row['Name']] = temp
-except csv.Error:
-    # it's not, so no idea what the heck has been thrown at us
-    PETSc.Sys.Print("Sorry, I could not decipher your tide gauge data. Exiting.")
-    PETSc.Sys.Print(tide_gauges[0])
-    sys.exit(1)
+    legacy_run = False # will not work with bss with this true...
 
-# coords to grab data
-gauge_locs = []
-for loc in tide_gauge_data:
-    location = (float(tide_gauge_data[loc]['Y']),float(tide_gauge_data[loc]['X']))
-    gauge_locs.append((location[1],location[0]))
+    if verbose:
+        print("Reading in tidal gauges")
+    # tide gauge data comes back as two nested dicts
+    #{location_name: {M2Amp: x, M2Phase:, y, etc, etc}
+    tide_gauge_data = read_tide_gauge_data(tide_gauges)
 
+    # coords to grab data
+    gauge_locs = []
+    for loc in tide_gauge_data:
+        location = (float(tide_gauge_data[loc]['Y']),float(tide_gauge_data[loc]['X']))
+        gauge_locs.append((location[1],location[0]))
 
-# How long does your simulations run for (s)
-t_end = params.end_time # which is the start file?
-start_file = 0
-# how often are exports produced in the main run?
-t_export = params.output_time
+    # How long does your simulations run for (s)
+    t_end = params.end_time
+    t_export = params.output_time
+    t_start = params.spin_up
+    t_n = int((t_end - t_start) / t_export) + 1
+    thetis_times = t_start + t_export*np.arange(t_n)
+    
+    # this is a big assumption in terms of which h5 file exists. May need updating in future.
+    chk = CheckpointFile(os.path.join(thetis_dir,params.output_dir,"hdf5/Elevation2d_00000.h5"),'r')
 
-# where are your thetis output files (note, do not include the hdf5 directory)
-thetis_dir = params.output_dir
+    thetis_mesh = chk.load_mesh()
+    P1DG = FunctionSpace(thetis_mesh, "DG", 1)
+    t_n = int((t_end - t_start) / t_export) + 1
+    if calc_velocity:
+        speed = Function(P1DG, name='speed')
+        uv = Function(P1DG, name='vel_2d')  
+        speed_data = np.empty((t_n,  len(gauge_locs)))
+    if calc_bss:
+        bss_data = np.empty((t_n,  len(gauge_locs)))
 
-t_n = int((t_end/t_export) - start_file + 1)
+    elev = Function(P1DG, name='elev_2d')
+    elev_data = np.empty((t_n,  len(gauge_locs)))
 
-# --- create dummy solver ---
-solverObj = solver2d.FlowSolver2d(mesh2d, Constant(10.0))
-options = solverObj.options
-options.simulation_export_time = t_export
-options.simulation_end_time = t_end
-options.output_directory =  thetis_dir
-options.manning_drag_coefficient = Constant(1.0)
-options.horizontal_viscosity = Constant(1.0)
-options.element_family = "dg-dg"
-options.output_directory = os.path.join(run_dir,params.output_dir)
+    count = int(t_start / t_export) #orig count = 0
+    index = 0 
+    for t in thetis_times:
+        iexport = int(t/t_export)
+        filename = '{0:s}_{1:05d}'.format("Elevation2d", iexport)
+        if verbose:
+            PETSc.Sys.Print("Elev",filename)
+        with CheckpointFile(os.path.join(thetis_dir,params.output_dir,"hdf5",filename+".h5"), 'r') as afile:
+            e = afile.load_function(thetis_mesh, "elev_2d")
+            elev_data[index, :] = e.at(gauge_locs,dont_raise=True)
+            PETSc.garbage_cleanup(comm=afile._comm)
+            gc.collect()
+            if calc_velocity:
+                filename = '{0:s}_{1:05d}'.format("Velocity2d", iexport)
+                if verbose:
+                    PETSc.Sys.Print("Vel:",filename)
+                with CheckpointFile(os.path.join(thetis_dir,params.output_dir,"hdf5",filename+".h5"), 'r') as afile:
+                    uv = afile.load_function(thetis_mesh, "uv_2d")
+                    u_data_set = uv.dat.data[:,0]
+                    v_data_set = uv.dat.data[:,1]
+                    speed.dat.data[:] = np.sqrt(u_data_set*u_data_set + v_data_set*v_data_set)
+                    speed_data[index,:] = speed.at(gauge_locs,dont_raise=True)
+                    PETSc.garbage_cleanup(comm=afile._comm)
+                    gc.collect()
+            if calc_bss:
+                if verbose:
+                    PETSc.Sys.Print('Reading BSS', index)
+                with CheckpointFile(file_location + 'bss_{:05}.h5'.format(i), 'r') as chk:
+                    bss = chk.load_function(thetis_mesh, "BSS")
+                    bss_data[index, :] = bss.at(gauge_locs,dont_raise=True)
+                    PETSc.garbage_cleanup(comm=chk._comm)
+                    gc.collect()
 
+            index = index + 1
 
-P1DG = FunctionSpace(mesh2d, "DG", 1)
-speed = Function(P1DG, name='speed')
+    filename = "model_gauges_elev"
+    if not stub is None:
+        filename = filename + "_" + stub
+    filename = filename + ".csv"
+    elev_data = np.append(np.reshape(np.array(thetis_times),(-1,1)),elev_data,axis=1)
+    header = ["Time"]
+    header.extend(tide_gauge_data.keys())
+    np.savetxt(os.path.join(thetis_dir,filename), elev_data, delimiter=",",header= ','.join(header),comments='')
+    if calc_velocity:
+        filename = "model_gauges_speed"
+        if not stub is None:
+            filename = filename + "_" + stub
+        filename = filename + ".csv"
+        speed_data = np.append(np.reshape(np.array(thetis_times),(-1,1)),speed_data,axis=1)
+        np.savetxt(os.path.join(thetis_dir,filename), speed_data, delimiter=",",header= ','.join(header),comments='')
+    if calc_bss:
+        filename = "model_gauges_bss"
+        if not stub is None:
+            filename = filename + "_" + stub
+        filename = filename + ".csv"
+        bss_data = np.append(np.reshape(np.array(thetis_times),(-1,1)),bss_data,axis=1)
+        np.savetxt(os.path.join(thetis_dir,filename), bss_data, delimiter=",",header= ','.join(header),comments='')
 
-thetis_times = params.output_time*np.arange(t_n)
-elev_data = np.empty((t_n,  len(gauge_locs)))
-speed_data = np.empty((t_n,  len(gauge_locs)))
-bss_data = np.empty((t_n,  len(gauge_locs)))
-
-count = 0
-for i in range(start_file,int(t_end/t_export)+1):
-    PETSc.Sys.Print('Reading h5 files. Time ',i,i*params.output_time)
-    solverObj.load_state(i, legacy_mode=legacy_run)
-    elev_data[count, :] = solverObj.fields.elev_2d.at(gauge_locs,dont_raise=True)
-    u_data_set = solverObj.fields.uv_2d.dat.data[:,0]
-    v_data_set = solverObj.fields.uv_2d.dat.data[:,1]
-    speed_dat = np.sqrt(u_data_set[:]*u_data_set[:] + v_data_set[:]*v_data_set[:])
-    speed.dat.data[:] = speed_dat
-    speed_data[count, :] = speed.at(gauge_locs,dont_raise=True)
-    count = count + 1
-
-PETSc.Sys.Print(elev_data)    
-PETSc.Sys.Print(np.reshape(np.array(thetis_times),(-1,1)))        
-elev_data = np.append(np.reshape(np.array(thetis_times),(-1,1)),elev_data,axis=1)
-speed_data = np.append(np.reshape(np.array(thetis_times),(-1,1)),speed_data,axis=1)
-
-#add thetis times to file
-np.savetxt(os.path.join(run_dir,"model_gauges_elev.csv"), elev_data, delimiter=",")
-np.savetxt(os.path.join(run_dir,"model_gauges_speed.csv"), speed_data, delimiter=",")
-
-count = 0
-if (not legacy_run):
-    # only if we're using the new checkpoint
-    file_location = os.path.join(run_dir,'analysis/') #location of the BSS output files
-    for i in range(start_file,int(t_end/t_export)+1):
-        PETSc.Sys.Print('Reading BSS h5 files. Time ',i,i*t_export)
-        with CheckpointFile(file_location + 'bss_{:05}.h5'.format(i), 'r') as chk:
-            mesh = chk.load_mesh()
-            bss = chk.load_function(mesh, "BSS")
-        bss_data[count, :] = bss.at(gauge_locs,dont_raise=True)
-        count = count + 1
-
-    bss_data = np.append(np.reshape(np.array(thetis_times),(-1,1)),bss_data,axis=1)
-    np.savetxt(os.path.join(run_dir,"model_gauges_bss.csv"), bss_data, delimiter=",")
-
+if __name__ == "__main__":
+    main()
