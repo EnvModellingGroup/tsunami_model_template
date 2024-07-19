@@ -184,9 +184,9 @@ def set_slide_centre(t,profile="eg"):
             t = 0
         if t < Ta:
             s = Ra*(1-math.cos(U_max/Ra*t))
-        elif Ta < t < Tc+Ta:
+        elif Ta <= t < Tc+Ta:
             s = Ra + U_max*(t - Ta)
-        elif Ta+Tc < t < Ta+Tc+Td:
+        elif Ta+Tc <= t < Ta+Tc+Td:
             s = Ra+Rc + Rd*math.sin(U_max/Rd * (t - Ta - Tc))
         else:
             s = R
