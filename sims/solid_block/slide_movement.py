@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-
 import numpy as np
 import math
 import sys
+
 
 # Here, the symbols match the papers
 # So some are copied form the common
@@ -11,15 +11,15 @@ import sys
 
 # Common for slide shape and behaviour
 # Slide breadth - front-to-back
-b = 686.0
+b = 5000.0
 # Slide width - side-to-side
-w = 343.
+w = 3430.
 # Slide max thickness
-max_h = 24.
+max_h = 500.
 # start x-location
-slide_start_x = 2137.773473+(b/2.)
+slide_start_x = 725000+(b/2.)
 # start y-location
-slide_start_y = 0.0
+slide_start_y = 0
 # terminal velocity
 ut = 21.09
 # grav acceleration
@@ -42,7 +42,7 @@ kw = 2*C/w
 a0 = 0.27
 s0 = (ut*ut)/a0
 t0 = ut/a0
-y_centre = 0.0
+y_centre = slide_start_y
 
 
 # Harbitz
@@ -53,14 +53,15 @@ U_max = ut
 S = b/4.
 L = b-S
 B = w
-Ra = 1000.
+Ra = 2500.
 Rc = 0.
-Rd = 1000.
+Rd = 2500.
 R = Ra + Rc + Rd
-T = (math.pi / 2.0) * ( R / U_max)
+#T = (math.pi / 2.0) * ( R / U_max)
 Ta = math.pi*Ra / (2.0 * U_max)
 Tc = Rc / U_max
 Td = math.pi*Rd / (2.0 * U_max)
+T = Ta + Tc + Td
 k = 0.01
 cd = (1.89 + 1.62*math.log10((L+S)/k))**(-5./2.)
 
@@ -69,15 +70,14 @@ cd = (1.89 + 1.62*math.log10((L+S)/k))**(-5./2.)
 # Note this model need a longer run time to get 2000m runnout
 ut_time = 175.
 acc_scale =  24.
-R = 2000.
+R_sig = 5000.
 
 
 def main():
 
-    from scipy.interpolate import griddata
     import argparse
     import pylab
-    import fileinput
+    import matplotlib.animation as animation
 
     parser = argparse.ArgumentParser(
          prog="test slide function",
@@ -95,7 +95,7 @@ def main():
         '-t',
         '--time',
         type=float,
-        default=100,
+        default=0,
         help="Which time to use"
     )
     parser.add_argument(
@@ -104,6 +104,11 @@ def main():
         type=float,
         default=0,
         help="Do animation of slide dynamics from 0 to time specified"
+    )
+    parser.add_argument(
+        '-s',
+        '--save',
+        help="Supply filename (.gif) if you want to save the animation"
     )
     parser.add_argument(
         '--coords',
@@ -118,14 +123,15 @@ def main():
     coords = args.coords
     time = args.time
     anim = args.animation
+    save_anim = args.save
     dt = 10
     x_coords = []
     vel = []
     if (coords == None):
-        coords = np.arange(0,8000,10)
+        coords = np.arange(slide_start_x-(b), slide_start_x+(2*b), 10)
 
     for c in coords:
-        x_coords.append([c,0.0])
+        x_coords.append([c,slide_start_y])
 
     params = {
       'legend.fontsize': 18,
@@ -137,17 +143,7 @@ def main():
     }
     pylab.rcParams.update(params)
 
-    fig = pylab.figure(figsize=(15,8),dpi=90)
-    ax = fig.add_subplot(111)  
-
-    if (anim == 0):
-        anim = time+1
-        pylab.ioff()
-    else:
-        time = 0
-        pylab.ion()
-    for t in np.arange(time,anim,dt):
-        vel = []
+    def update_values(t):
         h1 = []
         for c in x_coords:
             h1.append(slide_height(c,t))
@@ -156,20 +152,53 @@ def main():
             h2.append(slide_height(c,t, form="harbitz",profile="harbitz"))
         h3 = []
         for c in x_coords:
-            h3.append(slide_height(c,t,form="eg",profile="sigmoid"))
+            h3.append(slide_height(c,t,form="harbitz",profile="sigmoid"))
 
-        pylab.plot(x_coords,h1)
-        pylab.plot(x_coords,h2)
-        pylab.plot(x_coords,h3)
+        return h1, h2, h3
 
-        pylab.draw()
-        
-    if (anim == time + 1):
+
+    fig = pylab.figure(figsize=(15,8),dpi=90)
+    ax = fig.add_subplot(111) 
+
+    # create plot at zero
+    h1, h2, h3 = update_values(time)
+
+    plot_h1 = ax.plot(coords, h1, color="blue", label="eg-eg")[0]
+    ax.fill_between(coords, 0, h1, color='blue', alpha=.1)
+    plot_h2 = ax.plot(coords, h2, color="red", label="harbitz-harbitz")[0]
+    ax.fill_between(coords, 0, h2, color='red', alpha=.1)
+    plot_h3 = ax.plot(coords, h3, color="orange", label="harbitz-sigmoid")[0]
+    ax.fill_between(coords, 0, h3, color='orange', alpha=.1)
+    ax.set_xlim([min(coords),max(coords)])
+    ax.legend(loc="lower center")
+
+    if (anim == 0):
+        anim = time+1
+        pylab.ioff()
         pylab.show()
+    else:
+        times = np.arange(0, anim, dt)
+        def update_graphic(frame):
+            h1, h2, h3 = update_values(times[frame])
+            ax.collections.clear()
+            plot_h1.set_ydata(h1)
+            plot_h2.set_ydata(h2)
+            plot_h3.set_ydata(h3)
+            ax.fill_between(coords, 0, h1, color='blue', alpha=.1)
+            ax.fill_between(coords, 0, h2, color='red', alpha=.1)    
+            ax.fill_between(coords, 0, h3, color='orange', alpha=.1)
 
+            return (plot_h1, plot_h2, plot_h3)
+
+        ani = animation.FuncAnimation(fig=fig, func=update_graphic, frames=len(times))
+        if save_anim == None:
+            pylab.show()
+        else:
+            ani.save(filename=save_anim, writer="pillow")
+        
 def set_slide_centre(t,profile="eg"):
     
-    if (profile == "eg") :
+    if (profile == "eg"):
         if t<= 0:
             t = 0
         centre = s0*math.log(math.cosh(t/t0))
@@ -177,9 +206,6 @@ def set_slide_centre(t,profile="eg"):
         return centre
 
     elif (profile == "harbitz"):
-
-        if t > T:
-            t = T
         if t < 0:
             t = 0
         if t < Ta:
@@ -190,7 +216,7 @@ def set_slide_centre(t,profile="eg"):
             s = Ra+Rc + Rd*math.sin(U_max/Rd * (t - Ta - Tc))
         else:
             s = R
-
+        
         return s
 
     elif (profile == "sigmoid"):
@@ -200,7 +226,7 @@ def set_slide_centre(t,profile="eg"):
         #/((1. + math.exp(-1*((t-ut_time)/acc_scale)))**2)
         #print(sigmoid, t)
         sigmoid = (math.exp((t-ut_time)/acc_scale)/(math.exp((t-ut_time)/acc_scale)+1))
-        s = R*sigmoid
+        s = R_sig*sigmoid + b/2.0 + S/2.0
 
         return s
 
@@ -227,7 +253,6 @@ def slide_height(X,t,form="eg",profile="eg"):
     y_dash = -(X[0] - x_loc)* math.sin(eta) + (X[1] - y_loc)*math.cos(eta)
 
     if  (form == "eg"):
-        
         h = max_h/(1-eps) * ((1/math.cosh(kb*x_dash))*(1/math.cosh(kw*y_dash))-eps)
         if h < 0:
             h = 0
