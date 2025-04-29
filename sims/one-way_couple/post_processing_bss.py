@@ -50,6 +50,7 @@ P1 = FunctionSpace(thetis_mesh, "CG", 1)
 P1DG = FunctionSpace(thetis_mesh, "DG", 1)
 manningdg = project(manning, P1DG)
 bathydg = project(bathymetry2d, P1DG)
+bss = Function(P1DG, name="BSS")
 
 bathy = bathydg.dat.data[:].astype(np.single)
 man = manningdg.dat.data[:].astype(np.single)
@@ -79,10 +80,14 @@ for t in thetis_times:
     v_data_set = uv.dat.data[:,1].astype("float32")
     speed = np.sqrt(u_data_set*u_data_set + v_data_set*v_data_set)
     elev_bathy = elev_data_set + bathy
-    elev_bathy[elev_bathy < 0.01] = 0.0
+    elev_bathy[elev_bathy < 0.001] = 0.001
     tau_b = np.array(1024*9.81*man*man*speed*speed / (elev_bathy)**(1./3.))
     tau_b[ elev_bathy < 0.001] = 0.0 # we have < 1mm of water
     tau_b[ tau_b < 0.0 ] = 0.0 # we had no water (shouldn't happen due to above, but just in case)
+    bss.dat.data[:] = tau_b
+    with CheckpointFile(output_dir + "/bss_{:05}.h5".format(count), 'w') as bss_chk:
+        bss_chk.save_mesh(thetis_mesh)
+        bss_chk.save_function(bss)
     bss_data_set[count, :] = tau_b.astype("float32")
     elev_data_set = None
     speed = None
